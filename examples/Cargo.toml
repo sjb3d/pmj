@@ -1,0 +1,9 @@
+[package]
+name = "pmj-examples"
+version = "0.1.0"
+authors = ["Simon Brown <si@sjbrown.co.uk>"]
+edition = "2018"
+
+[dependencies]
+pmj = { path = "../pmj" }
+rand = "0.6.5"
