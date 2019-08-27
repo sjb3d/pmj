@@ -6,6 +6,7 @@
 //! * [Progressive Multi-Jittered Sample Sequences](https://graphics.pixar.com/library/ProgressiveMultiJitteredSampling/) by Christensen et al.
 //! * [Efficient Generation of Points that Satisfy Two-Dimensional Elementary Intervals](http://jcgt.org/published/0008/01/04/) by Matt Pharr.
 
+use rand_core::RngCore;
 use std::fmt;
 use std::num::NonZeroU64;
 
@@ -88,8 +89,10 @@ impl Sample {
     /// # Example
     ///
     /// ```
+    /// # use rand::prelude::*;
+    /// # use rand::rngs::SmallRng;
     /// # use pmj::*;
-    /// # let mut rng = || 0;
+    /// let mut rng = SmallRng::seed_from_u64(0);
     /// let samples = generate(1, 0, &mut rng);
     /// let x = samples[0].x();
     /// assert!(0.0 <= x && x < 1.0);
@@ -104,8 +107,10 @@ impl Sample {
     /// # Example
     ///
     /// ```
+    /// # use rand::prelude::*;
+    /// # use rand::rngs::SmallRng;
     /// # use pmj::*;
-    /// # let mut rng = || 0;
+    /// let mut rng = SmallRng::seed_from_u64(0);
     /// let samples = generate(1, 0, &mut rng);
     /// let y = samples[0].y();
     /// assert!(0.0 <= y && y < 1.0);
@@ -156,19 +161,19 @@ impl fmt::Display for Sample {
 }
 
 #[inline]
-fn generate_sample_bits<F: FnMut() -> u32>(
+fn generate_sample_bits<R: RngCore + ?Sized>(
     high_bit_count: u32,
     high_bits: u32,
-    rng: &mut F,
+    rng: &mut R,
 ) -> u32 {
     let low_bit_count = Sample::COORD_BIT_COUNT - high_bit_count;
     let rng_shift = 32 - low_bit_count;
-    (high_bits << low_bit_count) | (rng() >> rng_shift)
+    (high_bits << low_bit_count) | (rng.next_u32() >> rng_shift)
 }
 
 #[inline]
-fn generate_index<F: FnMut() -> u32>(len: usize, rng: &mut F) -> usize {
-    let u = rng();
+fn generate_index<R: RngCore + ?Sized>(len: usize, rng: &mut R) -> usize {
+    let u = rng.next_u32();
     let prod = u64::from(u) * (len as u64);
     (prod >> 32) as usize
 }
@@ -187,9 +192,9 @@ impl SampleCoordSet {
         self.bit_count = bit_count;
     }
 
-    fn sample<F: FnMut() -> u32>(
+    fn sample<R: RngCore + ?Sized>(
         &self,
-        rng: &mut F,
+        rng: &mut R,
         pair_class: PairClass,
         quad_class: QuadClass,
     ) -> Sample {
@@ -391,11 +396,11 @@ impl BlueNoiseAccel {
     }
 }
 
-fn pick_sample<F: FnMut() -> u32>(
+fn pick_sample<R: RngCore + ?Sized>(
     strat_result: &SampleCoordSet,
     bn_accel: Option<&BlueNoiseAccel>,
     blue_noise_retry_count: u32,
-    rng: &mut F,
+    rng: &mut R,
     pair_class: PairClass,
     quad_class: QuadClass,
 ) -> Sample {
@@ -420,19 +425,22 @@ fn pick_sample<F: FnMut() -> u32>(
 /// are considered as each sample is generated, and the candidate that is the greatest
 /// distance from all previous samples is selected.
 ///
-/// The function `rng` should return a random `u32` for each call.
+/// The random number generator can be any type that implements the RngCore trait
+/// from the rand_core crate.
 ///
 /// # Example
 ///
-/// ```ignore
-/// // using SmallRng from the rand crate
-/// let mut rng = SmallRng::seed_from_u64(0);
-/// let samples = generate(1024, 0, &mut || rng.gen::<u32>());
 /// ```
-pub fn generate<F: FnMut() -> u32>(
+/// # use rand::prelude::*;
+/// # use rand::rngs::SmallRng;
+/// # use pmj::*;
+/// let mut rng = SmallRng::seed_from_u64(0);
+/// let samples = generate(1024, 0, &mut rng);
+/// ```
+pub fn generate<R: RngCore + ?Sized>(
     sample_count: usize,
     blue_noise_retry_count: u32,
-    rng: &mut F,
+    rng: &mut R,
 ) -> Vec<Sample> {
     // first sample is anywhere
     let mut samples = Vec::with_capacity(sample_count);

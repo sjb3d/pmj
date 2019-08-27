@@ -1,5 +1,6 @@
 use pmj::{generate, PairClass, QuadClass, Sample};
 use rand::prelude::*;
+use rand::rngs::SmallRng;
 use std::fmt;
 use std::fs;
 use std::io;
@@ -80,7 +81,7 @@ fn write_partitions_svg() -> Result<()> {
     let samples = generate(
         1 << MAX_LOG2_SAMPLE_COUNT,
         BLUE_NOISE_RESAMPLE_COUNT,
-        &mut || rng.gen::<u32>(),
+        &mut rng,
     );
 
     const GRID_SIZE: f32 = 128.0;
@@ -139,9 +140,7 @@ fn write_classes_svg() -> Result<()> {
     let y = ORIGIN + MARGIN;
 
     let mut rng = SmallRng::seed_from_u64(SEED);
-    let samples = generate(SAMPLE_COUNT, BLUE_NOISE_RESAMPLE_COUNT, &mut || {
-        rng.gen::<u32>()
-    });
+    let samples = generate(SAMPLE_COUNT, BLUE_NOISE_RESAMPLE_COUNT, &mut rng);
 
     write_samples_svg(
         &mut w,

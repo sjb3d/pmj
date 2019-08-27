@@ -77,9 +77,7 @@ fn main() -> Result<()> {
 
     for seed in 0..SEED_COUNT {
         let mut rng = SmallRng::seed_from_u64(seed as u64);
-        let samples = generate(SAMPLE_COUNT, BLUE_NOISE_RESAMPLE_COUNT, &mut || {
-            rng.gen::<u32>()
-        });
+        let samples = generate(SAMPLE_COUNT, BLUE_NOISE_RESAMPLE_COUNT, &mut rng);
 
         accumulate_error(&samples, &mut disc_results, &disc, disc_reference);
         accumulate_error(

@@ -5,7 +5,12 @@ repository = "https://github.com/sjb3d/pmj"
 version = "0.1.0"
 authors = ["Simon Brown <si@sjbrown.co.uk>"]
 edition = "2018"
+readme = "../docs/README.md"
 keywords = ["progressive", "multi-jittered", "sequence"]
 license = "MIT"
 
 [dependencies]
+rand_core = "0.5"
+
+[dev-dependencies]
+rand = { version = "0.7", features = ["small_rng"] }

@@ -1,11 +1,12 @@
 use pmj::generate;
 use rand::prelude::*;
+use rand::rngs::SmallRng;
 use std::time::{Duration, Instant};
 
 fn generate_bench(count: usize) -> Duration {
     let mut rng = SmallRng::seed_from_u64(0);
     let start = Instant::now();
-    let _samples = generate(count, 0, &mut || rng.gen::<u32>());
+    let _samples = generate(count, 0, &mut rng);
     start.elapsed()
 }
 
