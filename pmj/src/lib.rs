@@ -2,7 +2,7 @@
 
 //! # Overview
 //!
-//! Crate to generate pmj02 sequences as described in the following papers:
+//! A crate to generate pmj02 and pmj02b sample sequences as described in the following papers:
 //! * [Progressive Multi-Jittered Sample Sequences](https://graphics.pixar.com/library/ProgressiveMultiJitteredSampling/) by Christensen et al.
 //! * [Efficient Generation of Points that Satisfy Two-Dimensional Elementary Intervals](http://jcgt.org/published/0008/01/04/) by Matt Pharr.
 

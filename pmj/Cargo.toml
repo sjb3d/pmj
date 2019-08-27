@@ -1,7 +1,11 @@
 [package]
 name = "pmj"
+description = "Code to generate pmj02 and pmj02b sample sequences"
+repository = "https://github.com/sjb3d/pmj"
 version = "0.1.0"
 authors = ["Simon Brown <si@sjbrown.co.uk>"]
 edition = "2018"
+keywords = ["progressive", "multi-jittered", "sequence"]
+license = "MIT"
 
 [dependencies]
