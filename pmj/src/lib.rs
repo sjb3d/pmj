@@ -39,29 +39,19 @@ pub struct Sample(NonZeroU64);
 impl Sample {
     const COORD_BIT_COUNT: u32 = 23;
     const COORD_MASK: u32 = 0x007f_ffff;
+    const CLASS_MASK: u32 = 0x0000_0003;
     const X_SHIFT: u32 = 1;
     const Y_SHIFT: u32 = Self::X_SHIFT + Self::COORD_BIT_COUNT;
-    const PAIR_SHIFT: u32 = Self::Y_SHIFT + Self::COORD_BIT_COUNT;
-    const QUAD_SHIFT: u32 = Self::PAIR_SHIFT + 1;
+    const CLASS_SHIFT: u32 = Self::Y_SHIFT + Self::COORD_BIT_COUNT;
 
-    fn new(x_bits: u32, y_bits: u32, pair_class: PairClass, quad_class: QuadClass) -> Self {
+    fn new(x_bits: u32, y_bits: u32, class_bits: u32) -> Self {
         debug_assert_eq!(x_bits & Self::COORD_MASK, x_bits);
         debug_assert_eq!(y_bits & Self::COORD_MASK, y_bits);
-        let pair_bits = match pair_class {
-            PairClass::A => 0,
-            PairClass::B => 1,
-        };
-        let quad_bits = match quad_class {
-            QuadClass::A => 0,
-            QuadClass::B => 1,
-            QuadClass::C => 2,
-            QuadClass::D => 3,
-        };
+        debug_assert_eq!(class_bits & Self::CLASS_MASK, class_bits);
         let all_bits = 1
             | (u64::from(x_bits) << Self::X_SHIFT)
             | (u64::from(y_bits) << Self::Y_SHIFT)
-            | ((pair_bits as u64) << Self::PAIR_SHIFT)
-            | ((quad_bits as u64) << Self::QUAD_SHIFT);
+            | (u64::from(class_bits) << Self::CLASS_SHIFT);
         unsafe { Self(NonZeroU64::new_unchecked(all_bits)) }
     }
 
@@ -77,6 +67,11 @@ impl Sample {
         debug_assert!(bit_count <= Self::COORD_BIT_COUNT);
         let y_bits = ((self.0.get() >> Self::Y_SHIFT) as u32) & Self::COORD_MASK;
         y_bits >> (Self::COORD_BIT_COUNT - bit_count)
+    }
+
+    #[inline]
+    fn class_bits(self) -> u32 {
+        ((self.0.get() >> Self::CLASS_SHIFT) as u32) & Self::CLASS_MASK
     }
 
     #[inline]
@@ -123,18 +118,17 @@ impl Sample {
     /// Returns which class this sample belongs to if samples are divided into 2 classes.
     #[inline]
     pub fn pair_class(self) -> PairClass {
-        let pair_bits = ((self.0.get() >> Self::PAIR_SHIFT) as u32) & 1;
-        match pair_bits {
-            0 => PairClass::A,
-            _ => PairClass::B,
+        if (self.class_bits() & 0x2) == 0 {
+            PairClass::A
+        } else {
+            PairClass::B
         }
     }
 
     /// Returns which class this sample belongs to if samples are divided into 4 classes.
     #[inline]
     pub fn quad_class(self) -> QuadClass {
-        let quad_bits = ((self.0.get() >> Self::QUAD_SHIFT) as u32) & 3;
-        match quad_bits {
+        match self.class_bits() {
             0 => QuadClass::A,
             1 => QuadClass::B,
             2 => QuadClass::C,
@@ -195,8 +189,7 @@ impl SampleCoordSet {
     fn sample<R: RngCore + ?Sized>(
         &self,
         rng: &mut R,
-        pair_class: PairClass,
-        quad_class: QuadClass,
+        class_bits: u32,
     ) -> Sample {
         let x_index = generate_index(self.valid_x.len(), rng);
         let y_index = generate_index(self.valid_y.len(), rng);
@@ -204,7 +197,7 @@ impl SampleCoordSet {
         let valid_y = self.valid_y.get(y_index).cloned().expect("no valid y");
         let x_bits = generate_sample_bits(self.bit_count, valid_x, rng);
         let y_bits = generate_sample_bits(self.bit_count, valid_y, rng);
-        Sample::new(x_bits, y_bits, pair_class, quad_class)
+        Sample::new(x_bits, y_bits, class_bits)
     }
 }
 
@@ -401,14 +394,13 @@ fn pick_sample<R: RngCore + ?Sized>(
     bn_accel: Option<&BlueNoiseAccel>,
     blue_noise_retry_count: u32,
     rng: &mut R,
-    pair_class: PairClass,
-    quad_class: QuadClass,
+    class_bits: u32,
 ) -> Sample {
-    let mut sample = strat_result.sample(rng, pair_class, quad_class);
+    let mut sample = strat_result.sample(rng, class_bits);
     if let Some(bn_accel) = bn_accel {
         let mut dist_sq = bn_accel.get_min_distance_sq(sample);
         for _ in 0..blue_noise_retry_count {
-            let other_sample = strat_result.sample(rng, pair_class, quad_class);
+            let other_sample = strat_result.sample(rng, class_bits);
             let other_dist_sq = bn_accel.get_min_distance_sq(other_sample);
             if dist_sq < other_dist_sq {
                 sample = other_sample;
@@ -447,7 +439,7 @@ pub fn generate<R: RngCore + ?Sized>(
     {
         let x_bits = generate_sample_bits(0, 0, rng);
         let y_bits = generate_sample_bits(0, 0, rng);
-        samples.push(Sample::new(x_bits, y_bits, PairClass::A, QuadClass::A));
+        samples.push(Sample::new(x_bits, y_bits, 0));
     }
 
     // sample to next power of 2, with stratification
@@ -482,13 +474,7 @@ pub fn generate<R: RngCore + ?Sized>(
                 bn_accel.as_ref(),
                 blue_noise_retry_count,
                 rng,
-                old_sample.pair_class(),
-                match old_sample.quad_class() {
-                    QuadClass::A => QuadClass::B,
-                    QuadClass::B => QuadClass::A,
-                    QuadClass::C => QuadClass::D,
-                    QuadClass::D => QuadClass::C,
-                },
+                old_sample.class_bits() ^ 0x1,
             );
             samples.push(sample);
             strat_accel.set(sample);
@@ -529,16 +515,7 @@ pub fn generate<R: RngCore + ?Sized>(
                 bn_accel.as_ref(),
                 blue_noise_retry_count,
                 rng,
-                match old_sample.pair_class() {
-                    PairClass::A => PairClass::B,
-                    PairClass::B => PairClass::A,
-                },
-                match old_sample.quad_class() {
-                    QuadClass::A => QuadClass::C,
-                    QuadClass::B => QuadClass::D,
-                    QuadClass::C => QuadClass::A,
-                    QuadClass::D => QuadClass::B,
-                },
+                old_sample.class_bits() ^ 0x2,
             );
             samples.push(sample);
             strat_accel.set(sample);
@@ -563,13 +540,7 @@ pub fn generate<R: RngCore + ?Sized>(
                 bn_accel.as_ref(),
                 blue_noise_retry_count,
                 rng,
-                old_sample.pair_class(),
-                match old_sample.quad_class() {
-                    QuadClass::A => QuadClass::B,
-                    QuadClass::B => QuadClass::A,
-                    QuadClass::C => QuadClass::D,
-                    QuadClass::D => QuadClass::C,
-                },
+                old_sample.class_bits() ^ 0x1,
             );
             samples.push(sample);
             strat_accel.set(sample);
