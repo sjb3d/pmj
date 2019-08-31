@@ -561,7 +561,7 @@ mod tests {
 
     #[test]
     fn fmt_debug() {
-        let s = Sample::new(0x40_0000, 0x40_0000, PairClass::B, QuadClass::C);
+        let s = Sample::new(0x40_0000, 0x40_0000, 0x2);
         assert_eq!(
             format!("{:?}", s),
             "Sample { x: 0.5, y: 0.5, pair_class: B, quad_class: C }"
@@ -570,7 +570,7 @@ mod tests {
 
     #[test]
     fn fmt_display() {
-        let s = Sample::new(0x40_0000, 0x40_0000, PairClass::B, QuadClass::C);
+        let s = Sample::new(0x40_0000, 0x40_0000, 0x2);
         assert_eq!(format!("{}", s), "(0.5, 0.5)");
     }
 }
