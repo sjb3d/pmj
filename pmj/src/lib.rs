@@ -491,8 +491,8 @@ pub fn generate<R: RngCore + ?Sized>(
         // Now pick one of the two remaining quadrants to existing samples
         /*
             Currently we pick a quadrant by flipping in x relative to the initial
-            quadrant, as this results in a 02 sequence for this sub-sequence, which
-            gets good convergence in the test integrals.
+            quadrant, as this seems to result in a 02 sequence for this sub-sequence,
+            which gets good convergence in the test integrals.
 
             It is possible to choose the quadrant randomly, but this has worse
             convergence on the test integrals.  So far it does not seem possible to
