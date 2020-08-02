@@ -450,6 +450,7 @@ pub fn generate<R: RngCore + ?Sized>(
 
         let quadrant_count = samples.len();
         let current_bit_count = (quadrant_count as u32).trailing_zeros();
+        let shuffle_mask = (quadrant_count as u32) - 1;
         let mut strat_result = SampleCoordSet::default();
 
         let high_bit_count = current_bit_count / 2 + 1;
@@ -461,8 +462,9 @@ pub fn generate<R: RngCore + ?Sized>(
 
         // Generate a set of samples in the diagonally opposite quadrants to existing samples
         let mut strat_accel = StratificationAccel::new(current_bit_count + 1, &samples);
+        let old_shuffle = (rng.next_u32() & shuffle_mask) as usize;
         for old_sample_index in 0..quadrant_count {
-            let old_sample = samples[old_sample_index];
+            let old_sample = samples[old_sample_index ^ old_shuffle];
             strat_accel.get_valid_coords(
                 high_bit_count,
                 old_sample.x_bits(high_bit_count) ^ 1,
@@ -490,24 +492,26 @@ pub fn generate<R: RngCore + ?Sized>(
 
         // Now pick one of the two remaining quadrants to existing samples
         /*
-            Currently we pick a quadrant by flipping in x relative to the initial
-            quadrant, as this seems to result in a 02 sequence for this sub-sequence,
+            Currently we pick a quadrant by either flipping all the initial
+            quadrants in x or flipping them all in y, as either of these
+            choices seems to result in a 02 sequence for this sub-sequence,
             which gets good convergence in the test integrals.
 
-            It is possible to choose the quadrant randomly, but this has worse
+            It is possible to choose each quadrant randomly, but this has worse
             convergence on the test integrals.  So far it does not seem possible to
             pick randomly and keep this sub-sequence a 02 sequence, this greedy
             algorithm seems to get stuck where there are no valid samples for a quadrant.
         */
+        let old_shuffle = (rng.next_u32() & shuffle_mask) as usize;
+        let flip_choice = rng.next_u32() & 1;
         let mut strat_accel = StratificationAccel::new(current_bit_count + 2, &samples);
         let mut sub_strat_check = StratificationAccel::new(current_bit_count, &[]);
         for old_sample_index in 0..quadrant_count {
-            let old_sample = samples[old_sample_index];
-            let choice = 1;
+            let old_sample = samples[old_sample_index ^ old_shuffle];
             strat_accel.get_valid_coords(
                 high_bit_count,
-                old_sample.x_bits(high_bit_count) ^ choice,
-                old_sample.y_bits(high_bit_count) ^ choice ^ 1,
+                old_sample.x_bits(high_bit_count) ^ flip_choice,
+                old_sample.y_bits(high_bit_count) ^ flip_choice ^ 1,
                 &mut strat_result,
             );
             let sample = pick_sample(
@@ -525,10 +529,12 @@ pub fn generate<R: RngCore + ?Sized>(
             }
         }
         debug_assert!(sub_strat_check.is_all_set());
+        drop(sub_strat_check);
 
-        // Finally pick the remaining quadrent (diagonally opposite the previous set)
+        // Finally pick the remaining quadrant (diagonally opposite the previous set)
+        let old_shuffle = (rng.next_u32() & shuffle_mask) as usize;
         for old_sample_index in 0..quadrant_count {
-            let old_sample = samples[old_sample_index + 2 * quadrant_count];
+            let old_sample = samples[(quadrant_count << 1) | (old_sample_index ^ old_shuffle)];
             strat_accel.get_valid_coords(
                 high_bit_count,
                 old_sample.x_bits(high_bit_count) ^ 1,
