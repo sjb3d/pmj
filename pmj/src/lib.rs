@@ -33,7 +33,7 @@ pub enum QuadClass {
 }
 
 /// Represents a 2D sample coordinate and classes.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Sample(NonZeroU64);
 
 impl Sample {
@@ -55,15 +55,23 @@ impl Sample {
         unsafe { Self(NonZeroU64::new_unchecked(all_bits)) }
     }
 
+    /// Returns up to 23 bits of data for the x coordinate of this sample.
+    ///
+    /// Returns the high bits when less than 23 bits of data is requested.
+    /// To return all available bits as a floating-point number, call [Self::x()] instead.
     #[inline]
-    fn x_bits(self, bit_count: u32) -> u32 {
+    pub fn x_bits(self, bit_count: u32) -> u32 {
         debug_assert!(bit_count <= Self::COORD_BIT_COUNT);
         let x_bits = ((self.0.get() >> Self::X_SHIFT) as u32) & Self::COORD_MASK;
         x_bits >> (Self::COORD_BIT_COUNT - bit_count)
     }
 
+    /// Returns up to 23 bits of data for the y coordinate of this sample.
+    ///
+    /// Returns the high bits when less than 23 bits of data is requested.
+    /// To return all available bits as a floating-point number, call [Self::y()] instead.
     #[inline]
-    fn y_bits(self, bit_count: u32) -> u32 {
+    pub fn y_bits(self, bit_count: u32) -> u32 {
         debug_assert!(bit_count <= Self::COORD_BIT_COUNT);
         let y_bits = ((self.0.get() >> Self::Y_SHIFT) as u32) & Self::COORD_MASK;
         y_bits >> (Self::COORD_BIT_COUNT - bit_count)
@@ -75,8 +83,8 @@ impl Sample {
     }
 
     #[inline]
-    fn grid_index(self, x_bit_count: u32, y_bit_count: u32) -> u32 {
-        (self.y_bits(y_bit_count) << x_bit_count) | self.x_bits(x_bit_count)
+    fn grid_index(self, x_bit_count: u32, y_bit_count: u32) -> usize {
+        ((self.y_bits(y_bit_count) << x_bit_count) | self.x_bits(x_bit_count)) as usize
     }
 
     /// Returns the x coordinate of this sample in [0, 1).
@@ -186,11 +194,7 @@ impl SampleCoordSet {
         self.bit_count = bit_count;
     }
 
-    fn sample<R: RngCore + ?Sized>(
-        &self,
-        rng: &mut R,
-        class_bits: u32,
-    ) -> Sample {
+    fn sample<R: RngCore + ?Sized>(&self, rng: &mut R, class_bits: u32) -> Sample {
         let x_index = generate_index(self.valid_x.len(), rng);
         let y_index = generate_index(self.valid_y.len(), rng);
         let valid_x = self.valid_x.get(x_index).cloned().expect("no valid x");
@@ -248,8 +252,8 @@ impl StratificationAccel {
             let mut level = BitArray::new(1 << bit_count);
             for sample in samples {
                 let index = sample.grid_index(x_bit_count, y_bit_count);
-                debug_assert!(!level.is_set(index as usize));
-                level.set(index as usize);
+                debug_assert!(!level.is_set(index));
+                level.set(index);
             }
             levels.push(level);
         }
@@ -319,7 +323,7 @@ impl StratificationAccel {
         for (x_bit_count, level) in self.levels.iter_mut().enumerate() {
             let x_bit_count = x_bit_count as u32;
             let y_bit_count = self.bit_count - x_bit_count;
-            let index = sample.grid_index(x_bit_count, y_bit_count) as usize;
+            let index = sample.grid_index(x_bit_count, y_bit_count);
             debug_assert!(!level.is_set(index));
             level.set(index);
         }
@@ -341,7 +345,7 @@ impl BlueNoiseAccel {
         let mut grid = vec![None; grid_size];
         for sample in samples {
             let index = sample.grid_index(bit_count, bit_count);
-            let elem = unsafe { grid.get_unchecked_mut(index as usize) };
+            let elem = unsafe { grid.get_unchecked_mut(index) };
             debug_assert!(elem.is_none());
             *elem = Some(*sample);
         }
@@ -370,7 +374,7 @@ impl BlueNoiseAccel {
         .iter()
         .filter_map(|offset| {
             let index = (centre_index + offset) & (grid_size - 1);
-            unsafe { self.grid.get_unchecked(index as usize) }.map(|s| {
+            unsafe { self.grid.get_unchecked(index) }.map(|s| {
                 let xd = (s.x() - ref_x).abs();
                 let yd = (s.y() - ref_y).abs();
                 let xd = xd.min(1f32 - xd);
@@ -383,7 +387,7 @@ impl BlueNoiseAccel {
 
     fn set(&mut self, sample: Sample) {
         let index = sample.grid_index(self.bit_count, self.bit_count);
-        let elem = unsafe { self.grid.get_unchecked_mut(index as usize) };
+        let elem = unsafe { self.grid.get_unchecked_mut(index) };
         debug_assert!(elem.is_none());
         *elem = Some(sample);
     }
