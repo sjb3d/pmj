@@ -7,4 +7,4 @@ publish = false
 
 [dependencies]
 pmj = { path = "../pmj" }
-rand = { version = "0.7", features = ["small_rng"] }
+rand = { version = "0.8.5", features = ["small_rng"] }
